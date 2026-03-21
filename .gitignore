@@ -1,0 +1,7 @@
+build/
+.gradle/
+*.class
+*.jar
+.DS_Store
+__pycache__/
+*.pyc
