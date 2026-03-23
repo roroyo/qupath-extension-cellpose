@@ -51,23 +51,6 @@ To enable Apple Silicon GPU (MPS) acceleration, also install the matching PyTorc
 pip install torch torchvision
 ```
 
-Verify MPS is available:
-
-```bash
-python -c "import torch; print(torch.backends.mps.is_available())"
-# True
-```
-
-### 4. Set environment variable (optional)
-
-By default, the extension searches `PATH` for `python3` / `python`. To pin it to a specific interpreter:
-
-```bash
-export QUPATH_CELLPOSE_PYTHON=/path/to/your/python3
-```
-
-Add this to your shell profile to make it permanent.
-
 ---
 
 ## Building the extension
@@ -102,28 +85,3 @@ export JAVA_HOME=$CONDA_PREFIX
 
 ./gradlew --no-daemon run
 ```
-
----
-
-## Python script
-
-The bundled script [`scripts/cellpose_segment.py`](scripts/cellpose_segment.py) accepts the following arguments:
-
-| Argument | Description |
-|---|---|
-| `--input` | Path to the input image patch (PNG) |
-| `--output` | Path to write the output JSON (polygons) |
-| `--labels-output` | Path to write the label mask (PNG, uint16) |
-| `--model` | Cellpose model type (default: `cyto`) |
-| `--diameter` | Estimated cell diameter in pixels (default: auto) |
-
-The script outputs a JSON file with detected cell polygons, which the Java extension reads to create QuPath detection objects.
-
----
-
-## Environment variables
-
-| Variable | Description |
-|---|---|
-| `QUPATH_CELLPOSE_PYTHON` | Override the Python executable path |
-| `QUPATH_CELLPOSE_SCRIPT` | Override the path to `cellpose_segment.py` |
