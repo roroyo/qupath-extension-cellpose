@@ -36,9 +36,12 @@ public class RunCellposePrototypeCommand implements Runnable {
             Path.of("scripts", "cellpose_segment.py"),
             Path.of("..", "scripts", "cellpose_segment.py")
     );
-    private static final String DEFAULT_MODEL = "cyto";
-    private static final double DEFAULT_DIAMETER = 30.0;
     private static final PathClass CELLPOSE_CLASS = PathClass.getInstance("Cellpose");
+
+    private String model = "cpsam";
+    private double diameter = 0.0;
+    private double flowThreshold = 0.4;
+    private double cellprobThreshold = 0.0;
 
     private final QuPathGUI qupath;
 
@@ -102,7 +105,8 @@ public class RunCellposePrototypeCommand implements Runnable {
                     var labelsPath = tempDir.resolve(annotationName + "-labels.png");
                     writePatch(patch, inputPath);
 
-                    var result = runCellpose(scriptPath, pythonExecutable, inputPath, outputPath, labelsPath);
+                    var result = runCellpose(scriptPath, pythonExecutable, inputPath, outputPath, labelsPath,
+                            model, diameter, flowThreshold, cellprobThreshold);
                     var detections = createDetections(annotation, regionRequest, result);
                     totalDetections += detections.size();
 
@@ -203,9 +207,13 @@ public class RunCellposePrototypeCommand implements Runnable {
             String pythonExecutable,
             Path inputPath,
             Path outputPath,
-            Path labelsPath
+            Path labelsPath,
+            String model,
+            double diameter,
+            double flowThreshold,
+            double cellprobThreshold
     ) throws IOException, InterruptedException {
-        var command = List.of(
+        var commandList = new java.util.ArrayList<>(List.of(
                 pythonExecutable,
                 scriptPath.toString(),
                 "--input",
@@ -215,10 +223,17 @@ public class RunCellposePrototypeCommand implements Runnable {
                 "--labels-output",
                 labelsPath.toString(),
                 "--model",
-                DEFAULT_MODEL,
-                "--diameter",
-                String.format(Locale.US, "%.1f", DEFAULT_DIAMETER)
-        );
+                model
+        ));
+        if (diameter > 0) {
+            commandList.add("--diameter");
+            commandList.add(String.format(Locale.US, "%.1f", diameter));
+        }
+        commandList.add("--flow-threshold");
+        commandList.add(String.format(Locale.US, "%.4f", flowThreshold));
+        commandList.add("--cellprob-threshold");
+        commandList.add(String.format(Locale.US, "%.4f", cellprobThreshold));
+        var command = List.copyOf(commandList);
 
         var processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
