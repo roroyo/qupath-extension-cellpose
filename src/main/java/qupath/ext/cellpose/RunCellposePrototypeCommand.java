@@ -93,6 +93,10 @@ public class RunCellposePrototypeCommand implements Runnable {
         );
 
         var selectedAnnotationsCopy = List.copyOf(selectedAnnotations);
+        var runModel = model;
+        var runDiameter = diameter;
+        var runFlowThreshold = flowThreshold;
+        var runCellprobThreshold = cellprobThreshold;
         qupath.getThreadPoolManager().getSingleThreadExecutor(this).submit(() -> {
             try {
                 var tempDir = Files.createTempDirectory("qupath-cellpose-");
@@ -111,7 +115,7 @@ public class RunCellposePrototypeCommand implements Runnable {
                     writePatch(patch, inputPath);
 
                     var result = runCellpose(scriptPath, pythonExecutable, inputPath, outputPath, labelsPath,
-                            model, diameter, flowThreshold, cellprobThreshold);
+                            runModel, runDiameter, runFlowThreshold, runCellprobThreshold);
                     var detections = createDetections(annotation, regionRequest, result);
                     totalDetections += detections.size();
 
