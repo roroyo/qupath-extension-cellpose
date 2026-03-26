@@ -3,9 +3,14 @@ package qupath.ext.cellpose;
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
 import javafx.application.Platform;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Dialog;
 import qupath.lib.geom.Point2;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
+import qupath.lib.gui.dialogs.ParameterPanelFX;
+import qupath.lib.plugins.parameters.ParameterList;
+import java.util.Arrays;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.PathObjects;
 import qupath.lib.objects.classes.PathClass;
@@ -136,6 +141,33 @@ public class RunCellposePrototypeCommand implements Runnable {
                 Platform.runLater(() -> Dialogs.showErrorNotification("Cellpose", e));
             }
         });
+    }
+
+    public void showSettingsDialog() {
+        var modelOptions = Arrays.asList(
+                "cpsam", "cyto3", "cyto2", "cyto", "nuclei",
+                "livecell", "tissuenet", "deepbact", "bact_omni", "CP", "CPx"
+        );
+        var params = new ParameterList()
+                .addChoiceParameter("model", "Model", model, modelOptions, "Cellpose model to use")
+                .addDoubleParameter("diameter", "Diameter (0 = auto)", diameter, "px", "Estimated cell diameter in pixels; 0 lets Cellpose estimate automatically")
+                .addDoubleParameter("flowThreshold", "Flow threshold", flowThreshold, null, "Maximum flow error per mask (default 0.4); increase to detect more cells")
+                .addDoubleParameter("cellprobThreshold", "Cellprob threshold", cellprobThreshold, null, "Cell probability cutoff (default 0.0); decrease to detect more cells");
+
+        var panel = new ParameterPanelFX(params);
+
+        var dialog = new Dialog<ButtonType>();
+        dialog.setTitle("Cellpose Settings");
+        dialog.getDialogPane().setContent(panel.getPane());
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        var result = dialog.showAndWait();
+        if (result.orElse(ButtonType.CANCEL) == ButtonType.OK) {
+            model = (String) params.getChoiceParameterValue("model");
+            diameter = params.getDoubleParameterValue("diameter");
+            flowThreshold = params.getDoubleParameterValue("flowThreshold");
+            cellprobThreshold = params.getDoubleParameterValue("cellprobThreshold");
+        }
     }
 
     private static String resolvePythonExecutable() {
