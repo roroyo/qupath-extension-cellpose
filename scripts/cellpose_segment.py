@@ -12,7 +12,7 @@ def parse_args():
     parser.add_argument("--input", required=True, help="Input image path")
     parser.add_argument("--output", required=True, help="Output JSON path")
     parser.add_argument("--labels-output", required=True, help="Output labels PNG path")
-    parser.add_argument("--model", default="cyto", help="Cellpose model type")
+    parser.add_argument("--model", default="cyto3", help="Cellpose model type")
     parser.add_argument("--diameter", type=float, default=None, help="Estimated object diameter")
     return parser.parse_args()
 

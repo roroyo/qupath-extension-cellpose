@@ -5,6 +5,8 @@ import com.google.gson.annotations.SerializedName;
 import javafx.application.Platform;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import qupath.lib.geom.Point2;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
@@ -13,12 +15,16 @@ import qupath.lib.plugins.parameters.ParameterList;
 import java.util.Arrays;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.PathObjects;
+import qupath.lib.common.ColorTools;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.ROIs;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.awt.image.ComponentColorModel;
+import java.awt.image.DataBuffer;
+import java.awt.color.ColorSpace;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -35,13 +41,14 @@ import java.util.stream.Collectors;
 
 public class RunCellposePrototypeCommand implements Runnable {
 
+    private static final Logger logger = LoggerFactory.getLogger(RunCellposePrototypeCommand.class);
     private static final Gson GSON = new Gson();
     private static final List<String> DEFAULT_PYTHON_COMMANDS = List.of("python3", "python");
     private static final List<Path> DEFAULT_SCRIPT_CANDIDATES = List.of(
             Path.of("scripts", "cellpose_segment.py"),
             Path.of("..", "scripts", "cellpose_segment.py")
     );
-    private static final PathClass CELLPOSE_CLASS = PathClass.getInstance("Cellpose");
+    private static final PathClass CELLPOSE_CLASS = PathClass.getInstance("Cellpose", ColorTools.packRGB(200, 0, 0));
 
     private String model = "cpsam";
     private double diameter = 0.0;
@@ -109,10 +116,9 @@ public class RunCellposePrototypeCommand implements Runnable {
                     var regionRequest = RegionRequest.createInstance(server.getPath(), 1.0, annotation.getROI());
                     var patch = server.readRegion(regionRequest);
 
-                    var inputPath = tempDir.resolve(annotationName + ".png");
+                    var inputPath = writePatch(patch, tempDir.resolve(annotationName + ".png"));
                     var outputPath = tempDir.resolve(annotationName + ".json");
                     var labelsPath = tempDir.resolve(annotationName + "-labels.png");
-                    writePatch(patch, inputPath);
 
                     var result = runCellpose(scriptPath, pythonExecutable, inputPath, outputPath, labelsPath,
                             runModel, runDiameter, runFlowThreshold, runCellprobThreshold);
@@ -232,9 +238,107 @@ public class RunCellposePrototypeCommand implements Runnable {
         return value.contains("/") || value.contains("\\");
     }
 
-    private static void writePatch(BufferedImage patch, Path inputPath) throws IOException {
-        if (!ImageIO.write(patch, "PNG", inputPath.toFile())) {
-            throw new IOException("Failed to write patch image to " + inputPath);
+    private static Path writePatch(BufferedImage patch, Path inputPath) throws IOException {
+        if (ImageIO.write(patch, "PNG", inputPath.toFile())) {
+            return inputPath;
+        }
+
+        var standardizedPatch = standardizePatchForExport(patch);
+        if (ImageIO.write(standardizedPatch, "PNG", inputPath.toFile())) {
+            return inputPath;
+        }
+
+        // Fall back to TIFF after standardizing the image into a writer-compatible layout.
+        var tiffPath = Path.of(inputPath.toString().replaceAll("\\.png$", ".tif"));
+        if (ImageIO.write(standardizedPatch, "TIFF", tiffPath.toFile())) {
+            return tiffPath;
+        }
+        throw new IOException("Failed to write patch image to " + inputPath);
+    }
+
+    private static BufferedImage standardizePatchForExport(BufferedImage patch) throws IOException {
+        var raster = patch.getRaster();
+        var bands = raster.getNumBands();
+        var transferType = raster.getTransferType();
+
+        if (transferType == DataBuffer.TYPE_USHORT) {
+            if (bands == 1) {
+                return copyBandToGrayscale(patch, BufferedImage.TYPE_USHORT_GRAY, 0);
+            }
+            if (bands >= 3) {
+                if (bands > 3) {
+                    logger.warn("Cellpose export dropping {} extra channel(s); exporting first 3 channels as 16-bit RGB", bands - 3);
+                }
+                return copyBandsToUShortRgb(patch);
+            }
+            logger.warn("Cellpose export found 2-channel 16-bit patch; exporting first channel as 16-bit grayscale");
+            return copyBandToGrayscale(patch, BufferedImage.TYPE_USHORT_GRAY, 0);
+        }
+
+        if (transferType == DataBuffer.TYPE_BYTE) {
+            if (bands == 1) {
+                return copyBandToGrayscale(patch, BufferedImage.TYPE_BYTE_GRAY, 0);
+            }
+            if (bands >= 3) {
+                if (bands > 3) {
+                    logger.warn("Cellpose export dropping {} extra channel(s); exporting first 3 channels as 8-bit RGB", bands - 3);
+                }
+                return copyBandsToByteRgb(patch);
+            }
+            logger.warn("Cellpose export found 2-channel 8-bit patch; exporting first channel as 8-bit grayscale");
+            return copyBandToGrayscale(patch, BufferedImage.TYPE_BYTE_GRAY, 0);
+        }
+
+        throw new IOException(
+                "Unsupported patch raster for Cellpose export: transferType=" + transferType + ", bands=" + bands
+                        + ". Export currently supports 8-bit or 16-bit grayscale/RGB data."
+        );
+    }
+
+    private static BufferedImage copyBandToGrayscale(BufferedImage source, int bufferedImageType, int band) {
+        var width = source.getWidth();
+        var height = source.getHeight();
+        var target = new BufferedImage(width, height, bufferedImageType);
+        var sourceRaster = source.getRaster();
+        var targetRaster = target.getRaster();
+        var samples = sourceRaster.getSamples(0, 0, width, height, band, (int[]) null);
+        targetRaster.setSamples(0, 0, width, height, 0, samples);
+        return target;
+    }
+
+    private static BufferedImage copyBandsToByteRgb(BufferedImage source) {
+        var width = source.getWidth();
+        var height = source.getHeight();
+        var target = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
+        copyRgbBands(source, target, 3);
+        return target;
+    }
+
+    private static BufferedImage copyBandsToUShortRgb(BufferedImage source) {
+        var width = source.getWidth();
+        var height = source.getHeight();
+        var colorModel = new ComponentColorModel(
+                ColorSpace.getInstance(ColorSpace.CS_sRGB),
+                false,
+                false,
+                BufferedImage.OPAQUE,
+                DataBuffer.TYPE_USHORT
+        );
+        var raster = java.awt.image.Raster.createInterleavedRaster(DataBuffer.TYPE_USHORT, width, height, 3, null);
+        var target = new BufferedImage(colorModel, raster, false, null);
+        copyRgbBands(source, target, 3);
+        return target;
+    }
+
+    private static void copyRgbBands(BufferedImage source, BufferedImage target, int channels) {
+        var width = source.getWidth();
+        var height = source.getHeight();
+        var sourceRaster = source.getRaster();
+        var targetRaster = target.getRaster();
+
+        for (int band = 0; band < channels; band++) {
+            var samples = sourceRaster.getSamples(0, 0, width, height, band, (int[]) null);
+            targetRaster.setSamples(0, 0, width, height, band, samples);
         }
     }
 

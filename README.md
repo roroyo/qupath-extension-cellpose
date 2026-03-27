@@ -71,6 +71,27 @@ cd qupath
 git clone https://github.com/roroyo/qupath-extension-cellpose.git qupath-extension-cellpose
 ```
 
+- Copy the `scripts/` folder from this repo into the QuPath root so the extension can find `cellpose_segment.py`:
+
+```bash
+cp -r qupath-extension-cellpose/scripts ./scripts
+```
+
+The expected directory layout under `qupath/`:
+
+```
+qupath/
+├── scripts/
+│   └── cellpose_segment.py       ← required here
+├── qupath-extension-cellpose/
+│   ├── build.gradle.kts
+│   ├── scripts/
+│   │   └── cellpose_segment.py   ← original copy
+│   └── src/
+├── settings.gradle.kts
+└── gradlew
+```
+
 - Register the extension in `settings.gradle.kts` by adding:
 
 ```kotlin
