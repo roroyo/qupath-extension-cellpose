@@ -34,10 +34,13 @@ public class CellposeExtension implements QuPathExtension {
         @ActionMenu(value = {"Menu.Extensions", "Cellpose>"})
         public final Action actionRunPrototype;
 
+        @ActionMenu(value = {"Menu.Extensions", "Cellpose>"})
+        public final Action actionSettings;
+
         CellposeActions(QuPathGUI qupath) {
-            actionRunPrototype = ActionTools.createAction(
-                    new RunCellposePrototypeCommand(qupath),
-                    "Run Cellpose on selected annotations");
+            var cmd = new RunCellposePrototypeCommand(qupath);
+            actionRunPrototype = ActionTools.createAction(cmd, "Run Cellpose on selected annotations");
+            actionSettings = ActionTools.createAction(cmd::showSettingsDialog, "Cellpose Settings\u2026");
         }
     }
 }

@@ -12,8 +12,12 @@ def parse_args():
     parser.add_argument("--input", required=True, help="Input image path")
     parser.add_argument("--output", required=True, help="Output JSON path")
     parser.add_argument("--labels-output", required=True, help="Output labels PNG path")
-    parser.add_argument("--model", default="cyto", help="Cellpose model type")
+    parser.add_argument("--model", default="cpsam", help="Cellpose model type")
     parser.add_argument("--diameter", type=float, default=None, help="Estimated object diameter")
+    parser.add_argument("--flow-threshold", type=float, default=0.4,
+                        help="Flow threshold (default 0.4)")
+    parser.add_argument("--cellprob-threshold", type=float, default=0.0,
+                        help="Cell probability threshold (default 0.0)")
     return parser.parse_args()
 
 
@@ -60,10 +64,13 @@ def main():
 
     image = load_image(input_path)
     model = CellposeModel(model_type=args.model, gpu=True)
-    masks, _, _ = model.eval(image, 
-        diameter=args.diameter, 
-        channels=[0, 0]
-        )
+    diameter = None if (args.diameter is None or args.diameter <= 0) else args.diameter
+    masks, _, _ = model.eval(
+        image,
+        diameter=diameter,
+        flow_threshold=args.flow_threshold,
+        cellprob_threshold=args.cellprob_threshold,
+    )
 
     labels_output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.parent.mkdir(parents=True, exist_ok=True)
