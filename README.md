@@ -73,21 +73,6 @@ Copy the `scripts/` folder into the QuPath root so the extension can find `cellp
 cp -r qupath-extension-cellpose/scripts ./scripts
 ```
 
-Expected directory layout under `qupath/`:
-
-```
-qupath/
-├── scripts/
-│   └── cellpose_segment.py            ← required at runtime
-├── qupath-extension-cellpose/
-│   ├── build.gradle.kts
-│   ├── scripts/
-│   │   └── cellpose_segment.py        ← canonical source
-│   └── src/
-├── settings.gradle.kts
-└── gradlew
-```
-
 Register the extension in `settings.gradle.kts`:
 
 ```kotlin
@@ -119,39 +104,3 @@ Open **Extensions → Cellpose → Cellpose Settings…** to adjust:
 | Cellprob threshold | `0.0` | Cell probability cutoff; decrease to detect faint cells |
 
 Settings persist for the duration of the QuPath session.
-
-### Environment variables
-
-| Variable | Purpose |
-|---|---|
-| `QUPATH_CELLPOSE_PYTHON` | Path or command for the Python executable (overrides PATH search) |
-| `QUPATH_CELLPOSE_SCRIPT` | Absolute path to `cellpose_segment.py` (overrides default search) |
-
----
-
-## Python script: `scripts/cellpose_segment.py`
-
-The script is invoked by the extension for each annotation region. It accepts:
-
-```
-cellpose_segment.py
-  --input <image.png>
-  --output <result.json>
-  --labels-output <labels.png>
-  --model <name>               default: cpsam
-  --diameter <float>           default: auto
-  --flow-threshold <float>     default: 0.4
-  --cellprob-threshold <float> default: 0.0
-```
-
-It outputs:
-- A JSON file with detected polygon coordinates (imported by QuPath)
-- A 16-bit grayscale PNG with instance labels
-
-Supports 8-bit and 16-bit grayscale and RGB input images.
-
----
-
-## Output
-
-Detected cells are added as `Cellpose` detection objects (red) under each processed annotation. A summary dialog reports the number of detections created.
